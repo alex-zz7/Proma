@@ -18,6 +18,7 @@ import { MessageSquare, AlertCircle, X } from 'lucide-react'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
+import { AgentRecommendBanner } from './AgentRecommendBanner'
 import { PromptEditorSidebar } from './PromptEditorSidebar'
 import type { InlineEditSubmitPayload } from './ChatMessageItem'
 import {
@@ -36,6 +37,7 @@ import {
   INITIAL_MESSAGE_LIMIT,
   chatStreamErrorsAtom,
   currentChatErrorAtom,
+  pendingAgentRecommendationAtom,
 } from '@/atoms/chat-atoms'
 import { resolvedSystemMessageAtom, promptSidebarOpenAtom } from '@/atoms/system-prompt-atoms'
 import { activeToolIdsAtom } from '@/atoms/chat-tool-atoms'
@@ -71,6 +73,7 @@ export function ChatView(): React.ReactElement {
   const resolvedSystemMessage = useAtomValue(resolvedSystemMessageAtom)
   const promptSidebarOpen = useAtomValue(promptSidebarOpenAtom)
   const activeToolIds = useAtomValue(activeToolIdsAtom)
+  const setPendingRecommendation = useSetAtom(pendingAgentRecommendationAtom)
   const [inlineEditingMessageId, setInlineEditingMessageId] = React.useState<string | null>(null)
 
   // 首条消息标题生成相关 ref（支持多对话并行）
@@ -84,6 +87,7 @@ export function ChatView(): React.ReactElement {
 
   React.useEffect(() => {
     setInlineEditingMessageId(null)
+    setPendingRecommendation(null)
   }, [currentConversationId])
 
   // 加载当前对话最近消息 + 上下文分隔线
@@ -244,6 +248,27 @@ export function ChatView(): React.ReactElement {
           ...s,
           toolActivities: [...s.toolActivities, event.activity],
         }))
+
+        // 检测 Agent 推荐工具结果，写入推荐 atom
+        if (
+          event.activity.type === 'result'
+          && event.activity.toolName === 'suggest_agent_mode'
+          && event.activity.result
+          && !event.activity.isError
+        ) {
+          try {
+            const parsed = JSON.parse(event.activity.result) as { type?: string; reason?: string; suggestedPrompt?: string }
+            if (parsed.type === 'agent_recommendation' && parsed.reason && parsed.suggestedPrompt) {
+              setPendingRecommendation({
+                reason: parsed.reason,
+                suggestedPrompt: parsed.suggestedPrompt,
+                conversationId: event.conversationId,
+              })
+            }
+          } catch {
+            // JSON 解析失败，忽略
+          }
+        }
       }
     )
 
@@ -664,6 +689,9 @@ export function ChatView(): React.ReactElement {
               </button>
             </div>
           )}
+
+          {/* Agent 模式推荐横幅 */}
+          <AgentRecommendBanner />
 
           {/* 底部：输入框 */}
           <ChatInput

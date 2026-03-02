@@ -7,7 +7,7 @@
  */
 
 import * as React from 'react'
-import { Loader2, Brain, Globe, Wrench, CheckCircle2, XCircle, ChevronRight } from 'lucide-react'
+import { Loader2, Brain, Globe, Wrench, Sparkles, CheckCircle2, XCircle, ChevronRight } from 'lucide-react'
 import {
   Collapsible,
   CollapsibleTrigger,
@@ -22,6 +22,7 @@ const TOOL_LABELS: Record<string, { running: string; done: string }> = {
   recall_memory: { running: '正在回忆…', done: '回忆完成' },
   add_memory: { running: '正在记住…', done: '已记住' },
   web_search: { running: '正在搜索…', done: '搜索完成' },
+  suggest_agent_mode: { running: '正在分析任务适配性…', done: '已推荐 Agent 模式' },
 }
 
 /** 根据工具名称返回对应图标 */
@@ -31,6 +32,9 @@ function getToolIcon(toolName: string): React.ReactElement {
   }
   if (toolName === 'web_search') {
     return <Globe className="size-3" />
+  }
+  if (toolName === 'suggest_agent_mode') {
+    return <Sparkles className="size-3" />
   }
   return <Wrench className="size-3" />
 }

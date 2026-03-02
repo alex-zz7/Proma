@@ -11,6 +11,7 @@ import { CHAT_IPC_CHANNELS } from '@proma/shared'
 import { isMemoryToolCall, executeMemoryTool } from './chat-tools/memory-tool'
 import { isWebSearchToolCall, executeWebSearchTool } from './chat-tools/web-search-tool'
 import { isCustomHttpToolCall, executeHttpTool } from './chat-tools/http-tool-executor'
+import { isAgentRecommendToolCall, executeAgentRecommendTool } from './chat-tools/agent-recommend-tool'
 import { getChatToolsConfig } from './chat-tool-config'
 
 /** 工具执行上下文 */
@@ -43,6 +44,8 @@ export async function executeToolCalls(
       result = await executeMemoryTool(tc)
     } else if (isWebSearchToolCall(tc.name)) {
       result = await executeWebSearchTool(tc)
+    } else if (isAgentRecommendToolCall(tc.name)) {
+      result = await executeAgentRecommendTool(tc)
     } else if (isCustomHttpToolCall(tc.name)) {
       const config = getChatToolsConfig()
       const meta = config.customTools.find((t) => t.id === tc.name)

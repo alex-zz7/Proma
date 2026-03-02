@@ -99,6 +99,7 @@ import {
   getAgentSessionMessages,
   updateAgentSessionMeta,
   deleteAgentSession,
+  migrateChatToAgentSession,
 } from './lib/agent-session-manager'
 import { runAgent, stopAgent, generateAgentTitle, saveFilesToAgentSession, copyFolderToSession } from './lib/agent-service'
 import { permissionService } from './lib/agent-permission-service'
@@ -569,6 +570,14 @@ export function registerIpcHandlers(): void {
       // 清理 AskUser 服务中的待处理请求
       askUserService.clearSessionPending(id)
       return deleteAgentSession(id)
+    }
+  )
+
+  // 迁移 Chat 对话记录到 Agent 会话
+  ipcMain.handle(
+    AGENT_IPC_CHANNELS.MIGRATE_CHAT_TO_AGENT,
+    async (_, conversationId: string, agentSessionId: string): Promise<void> => {
+      migrateChatToAgentSession(conversationId, agentSessionId)
     }
   )
 

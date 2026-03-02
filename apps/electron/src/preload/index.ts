@@ -257,6 +257,9 @@ export interface ElectronAPI {
   /** 删除 Agent 会话 */
   deleteAgentSession: (id: string) => Promise<void>
 
+  /** 迁移 Chat 对话记录到 Agent 会话 */
+  migrateChatToAgent: (conversationId: string, agentSessionId: string) => Promise<void>
+
   /** 生成 Agent 会话标题 */
   generateAgentTitle: (input: AgentGenerateTitleInput) => Promise<string | null>
 
@@ -687,6 +690,10 @@ const electronAPI: ElectronAPI = {
 
   deleteAgentSession: (id: string) => {
     return ipcRenderer.invoke(AGENT_IPC_CHANNELS.DELETE_SESSION, id)
+  },
+
+  migrateChatToAgent: (conversationId: string, agentSessionId: string) => {
+    return ipcRenderer.invoke(AGENT_IPC_CHANNELS.MIGRATE_CHAT_TO_AGENT, conversationId, agentSessionId)
   },
 
   generateAgentTitle: (input: AgentGenerateTitleInput) => {

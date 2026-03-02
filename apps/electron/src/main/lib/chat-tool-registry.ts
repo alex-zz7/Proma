@@ -21,6 +21,11 @@ import {
   WEB_SEARCH_TOOL_DEFINITIONS,
   isWebSearchAvailable,
 } from './chat-tools/web-search-tool'
+import {
+  AGENT_RECOMMEND_TOOL_META,
+  AGENT_RECOMMEND_TOOL_DEFINITIONS,
+  isAgentRecommendAvailable,
+} from './chat-tools/agent-recommend-tool'
 import { getMemoryConfig } from './memory-service'
 
 // ===== 内置工具注册 =====
@@ -43,6 +48,11 @@ const BUILTIN_TOOLS: BuiltinToolEntry[] = [
     meta: WEB_SEARCH_TOOL_META,
     getDefinitions: () => WEB_SEARCH_TOOL_DEFINITIONS,
     checkAvailable: isWebSearchAvailable,
+  },
+  {
+    meta: AGENT_RECOMMEND_TOOL_META,
+    getDefinitions: () => AGENT_RECOMMEND_TOOL_DEFINITIONS,
+    checkAvailable: isAgentRecommendAvailable,
   },
 ]
 

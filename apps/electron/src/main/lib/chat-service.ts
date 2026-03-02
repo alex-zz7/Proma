@@ -34,8 +34,8 @@ import { executeToolCalls } from './chat-tool-executor'
 /** 活跃的 AbortController 映射（conversationId → controller） */
 const activeControllers = new Map<string, AbortController>()
 
-/** 最大工具续接轮数（防止无限循环） */
-const MAX_TOOL_ROUNDS = 5
+/** 最大工具续接轮数（防止无限循环，每轮可含多个工具调用） */
+const MAX_TOOL_ROUNDS = 20
 
 // ===== 平台相关：图片附件读取器 =====
 
@@ -269,9 +269,44 @@ export async function sendMessage(
     // 9. 工具续接循环
     let continuationMessages: ContinuationMessage[] = []
     let round = 0
+    /** 标记最近一轮是否执行了工具（用于判断是否需要最终响应轮） */
+    let pendingToolResults = false
+
+    /** 流式事件处理器（工具轮和最终响应轮复用） */
+    const handleStreamEvent = (event: { type: string; delta?: string; toolCallId?: string; toolName?: string }): void => {
+      switch (event.type) {
+        case 'chunk':
+          accumulatedContent += event.delta ?? ''
+          webContents.send(CHAT_IPC_CHANNELS.STREAM_CHUNK, {
+            conversationId,
+            delta: event.delta,
+          })
+          break
+        case 'reasoning':
+          accumulatedReasoning += event.delta ?? ''
+          webContents.send(CHAT_IPC_CHANNELS.STREAM_REASONING, {
+            conversationId,
+            delta: event.delta,
+          })
+          break
+        case 'tool_call_start':
+          accumulatedToolActivities.push({
+            toolCallId: event.toolCallId!,
+            toolName: event.toolName!,
+            type: 'start',
+          })
+          webContents.send(CHAT_IPC_CHANNELS.STREAM_TOOL_ACTIVITY, {
+            conversationId,
+            activity: { type: 'start', toolName: event.toolName!, toolCallId: event.toolCallId! },
+          })
+          break
+        // done 事件在外部处理
+      }
+    }
 
     while (round < MAX_TOOL_ROUNDS) {
       round++
+      pendingToolResults = false
 
       const request = adapter.buildStreamRequest({
         baseUrl: channel.baseUrl,
@@ -287,41 +322,12 @@ export async function sendMessage(
         continuationMessages: continuationMessages.length > 0 ? continuationMessages : undefined,
       })
 
-      const { content, reasoning, toolCalls, stopReason } = await streamSSE({
+      const { content, toolCalls, stopReason } = await streamSSE({
         request,
         adapter,
         signal: controller.signal,
         fetchFn,
-        onEvent: (event) => {
-          switch (event.type) {
-            case 'chunk':
-              accumulatedContent += event.delta
-              webContents.send(CHAT_IPC_CHANNELS.STREAM_CHUNK, {
-                conversationId,
-                delta: event.delta,
-              })
-              break
-            case 'reasoning':
-              accumulatedReasoning += event.delta
-              webContents.send(CHAT_IPC_CHANNELS.STREAM_REASONING, {
-                conversationId,
-                delta: event.delta,
-              })
-              break
-            case 'tool_call_start':
-              accumulatedToolActivities.push({
-                toolCallId: event.toolCallId,
-                toolName: event.toolName,
-                type: 'start',
-              })
-              webContents.send(CHAT_IPC_CHANNELS.STREAM_TOOL_ACTIVITY, {
-                conversationId,
-                activity: { type: 'start', toolName: event.toolName, toolCallId: event.toolCallId },
-              })
-              break
-            // done 事件在外部处理
-          }
-        },
+        onEvent: handleStreamEvent,
       })
 
       // 如果没有工具调用或不是 tool_use 停止，退出循环
@@ -355,8 +361,37 @@ export async function sendMessage(
         { role: 'assistant' as const, content, toolCalls },
         { role: 'tool' as const, results: toolResults },
       ]
+      pendingToolResults = true
 
       // 注意：不重置 accumulatedContent/accumulatedReasoning，跨轮次持续累积
+    }
+
+    // 10. 最终响应轮：如果因达到 MAX_TOOL_ROUNDS 退出但仍有待处理的工具结果，
+    // 再发起一次 API 调用（不传 tools）让模型基于工具结果生成最终文本回复
+    if (pendingToolResults && continuationMessages.length > 0) {
+      console.log(`[聊天服务] 工具轮次已达上限 (${MAX_TOOL_ROUNDS})，发起最终响应轮`)
+
+      const finalRequest = adapter.buildStreamRequest({
+        baseUrl: channel.baseUrl,
+        apiKey,
+        modelId,
+        history: enrichedHistory,
+        userMessage: enrichedUserMessage,
+        systemMessage: effectiveSystemMessage,
+        attachments,
+        readImageAttachments: getImageAttachmentData,
+        thinkingEnabled,
+        // 不传 tools，强制模型生成文本回复而非继续调用工具
+        continuationMessages,
+      })
+
+      await streamSSE({
+        request: finalRequest,
+        adapter,
+        signal: controller.signal,
+        fetchFn,
+        onEvent: handleStreamEvent,
+      })
     }
 
     // 10. 保存 assistant 消息（空内容不保存）
