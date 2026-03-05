@@ -7,7 +7,7 @@
 
 import * as React from 'react'
 import { toast } from 'sonner'
-import { Upload, File, FolderPlus, Loader2 } from 'lucide-react'
+import { Upload, File, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { fileToBase64 } from '@/lib/file-utils'
@@ -88,7 +88,7 @@ export function FileDropZone({ workspaceSlug, sessionId, onFilesUploaded }: File
     }
 
     if (hasFolders) {
-      toast.info('不支持拖拽文件夹', { description: '请使用「选择文件夹」按钮' })
+      toast.info('不支持拖拽文件夹', { description: '请使用输入框工具栏的「附加文件夹」按钮' })
     }
 
     if (regularFiles.length > 0) {
@@ -120,28 +120,6 @@ export function FileDropZone({ workspaceSlug, sessionId, onFilesUploaded }: File
     } catch (error) {
       console.error('[FileDropZone] 选择文件失败:', error)
       toast.error('文件上传失败')
-    } finally {
-      setIsUploading(false)
-    }
-  }, [workspaceSlug, sessionId, onFilesUploaded])
-
-  const handleSelectFolder = React.useCallback(async (): Promise<void> => {
-    try {
-      const result = await window.electronAPI.openFolderDialog()
-      if (!result) return
-
-      setIsUploading(true)
-      await window.electronAPI.copyFolderToSession({
-        sourcePath: result.path,
-        workspaceSlug,
-        sessionId,
-      })
-
-      onFilesUploaded()
-      toast.success(`已添加文件夹「${result.name}」`)
-    } catch (error) {
-      console.error('[FileDropZone] 选择文件夹失败:', error)
-      toast.error('文件夹上传失败')
     } finally {
       setIsUploading(false)
     }
@@ -188,16 +166,6 @@ export function FileDropZone({ workspaceSlug, sessionId, onFilesUploaded }: File
               >
                 <File className="size-3" />
                 选择文件
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-6 text-[11px] px-2 gap-1"
-                onClick={handleSelectFolder}
-              >
-                <FolderPlus className="size-3" />
-                选择文件夹
               </Button>
             </div>
           </>
