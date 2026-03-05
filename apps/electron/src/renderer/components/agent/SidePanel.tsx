@@ -104,6 +104,25 @@ export function SidePanel({ sessionId, sessionPath }: SidePanelProps): React.Rea
   const setAttachedDirsMap = useSetAtom(agentAttachedDirectoriesMapAtom)
   const attachedDirs = attachedDirsMap.get(sessionId) ?? []
 
+  const handleAttachFolder = React.useCallback(async () => {
+    try {
+      const result = await window.electronAPI.openFolderDialog()
+      if (!result) return
+
+      const updated = await window.electronAPI.attachDirectory({
+        sessionId,
+        directoryPath: result.path,
+      })
+      setAttachedDirsMap((prev) => {
+        const map = new Map(prev)
+        map.set(sessionId, updated)
+        return map
+      })
+    } catch (error) {
+      console.error('[SidePanel] 附加文件夹失败:', error)
+    }
+  }, [sessionId, setAttachedDirsMap])
+
   const handleDetachDirectory = React.useCallback(async (dirPath: string) => {
     try {
       const updated = await window.electronAPI.detachDirectory({
@@ -304,6 +323,7 @@ export function SidePanel({ sessionId, sessionPath }: SidePanelProps): React.Rea
                     workspaceSlug={workspaceSlug}
                     sessionId={sessionId}
                     onFilesUploaded={handleFilesUploaded}
+                    onAttachFolder={handleAttachFolder}
                   />
                   {/* 文件浏览器（隐藏内置工具栏） */}
                   <div className="flex-1 min-h-0">

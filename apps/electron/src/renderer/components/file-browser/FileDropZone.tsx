@@ -7,7 +7,7 @@
 
 import * as React from 'react'
 import { toast } from 'sonner'
-import { Upload, File, Loader2 } from 'lucide-react'
+import { Upload, File, FolderPlus, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { fileToBase64 } from '@/lib/file-utils'
@@ -19,9 +19,11 @@ interface FileDropZoneProps {
   sessionId: string
   /** 上传成功后的回调（触发文件浏览器刷新） */
   onFilesUploaded: () => void
+  /** 附加文件夹回调 */
+  onAttachFolder?: () => void
 }
 
-export function FileDropZone({ workspaceSlug, sessionId, onFilesUploaded }: FileDropZoneProps): React.ReactElement {
+export function FileDropZone({ workspaceSlug, sessionId, onFilesUploaded, onAttachFolder }: FileDropZoneProps): React.ReactElement {
   const [isDragOver, setIsDragOver] = React.useState(false)
   const [isUploading, setIsUploading] = React.useState(false)
 
@@ -167,6 +169,18 @@ export function FileDropZone({ workspaceSlug, sessionId, onFilesUploaded }: File
                 <File className="size-3" />
                 选择文件
               </Button>
+              {onAttachFolder && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-[11px] px-2 gap-1"
+                  onClick={onAttachFolder}
+                >
+                  <FolderPlus className="size-3" />
+                  附加文件夹
+                </Button>
+              )}
             </div>
           </>
         )}
