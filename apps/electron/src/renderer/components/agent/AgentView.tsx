@@ -44,6 +44,12 @@ import {
   agentMessageRefreshAtom,
   agentSessionsAtom,
   currentAgentSessionIdAtom,
+  cachedTeamOverviewsAtom,
+  cachedTeammateStatesAtom,
+  cachedTeamActivitiesAtom,
+  dismissedTeamSessionIdsAtom,
+  buildTeamActivityEntries,
+  rebuildTeamDataFromMessages,
 } from '@/atoms/agent-atoms'
 import type { AgentContextStatus } from '@/atoms/agent-atoms'
 import { activeViewAtom } from '@/atoms/active-view'
@@ -152,6 +158,33 @@ export function AgentView({ sessionId }: { sessionId: string }): React.ReactElem
       .then((msgs) => {
         setMessages(msgs)
 
+        // 从持久化消息中重建 Team 数据并填充缓存（页面刷新后恢复）
+        const teamData = rebuildTeamDataFromMessages(msgs)
+        if (teamData) {
+          if (teamData.overview) {
+            store.set(cachedTeamOverviewsAtom, (prev) => {
+              const map = new Map(prev)
+              map.set(sessionId, teamData.overview!)
+              return map
+            })
+          }
+          if (teamData.teammates.length > 0) {
+            store.set(cachedTeammateStatesAtom, (prev) => {
+              const map = new Map(prev)
+              map.set(sessionId, teamData.teammates)
+              return map
+            })
+          }
+          const entries = buildTeamActivityEntries(teamData.toolActivities)
+          if (entries.length > 0) {
+            store.set(cachedTeamActivitiesAtom, (prev) => {
+              const map = new Map(prev)
+              map.set(sessionId, entries)
+              return map
+            })
+          }
+        }
+
         // 消息加载完成后，清除已完成的流式状态（running=false 的过渡气泡）
         // 在同一个微任务中执行，确保 React 在一次渲染中同时显示持久化消息并移除流式气泡
         setStreamingStates((prev) => {
@@ -163,7 +196,7 @@ export function AgentView({ sessionId }: { sessionId: string }): React.ReactElem
         })
       })
       .catch(console.error)
-  }, [sessionId, refreshVersion, setStreamingStates])
+  }, [sessionId, refreshVersion, setStreamingStates, store])
 
   // 自动发送 pending prompt（从设置页"对话完成配置"触发）
   React.useEffect(() => {
@@ -184,6 +217,7 @@ export function AgentView({ sessionId }: { sessionId: string }): React.ReactElem
           running: true,
           content: '',
           toolActivities: [],
+          teammates: [],
           model: agentModelId || undefined,
           startedAt: Date.now(),
         })
@@ -506,6 +540,14 @@ export function AgentView({ sessionId }: { sessionId: string }): React.ReactElem
       })
     }
 
+    // 新一轮对话开始时，解除 Team 面板关闭状态（允许新 Team 数据显示）
+    store.set(dismissedTeamSessionIdsAtom, (prev: Set<string>) => {
+      if (!prev.has(sessionId)) return prev
+      const next = new Set(prev)
+      next.delete(sessionId)
+      return next
+    })
+
     // 初始化流式状态
     setStreamingStates((prev) => {
       const map = new Map(prev)
@@ -513,6 +555,7 @@ export function AgentView({ sessionId }: { sessionId: string }): React.ReactElem
         running: true,
         content: '',
         toolActivities: [],
+        teammates: [],
         model: agentModelId || undefined,
       })
       return map
@@ -572,6 +615,7 @@ export function AgentView({ sessionId }: { sessionId: string }): React.ReactElem
         running: true,
         content: '',
         toolActivities: [],
+        teammates: [],
         model: agentModelId || undefined,
         startedAt: Date.now(),
       }
@@ -624,6 +668,7 @@ export function AgentView({ sessionId }: { sessionId: string }): React.ReactElem
         running: true,
         content: '',
         toolActivities: [],
+        teammates: [],
         model: agentModelId || undefined,
       })
       return map
@@ -664,6 +709,7 @@ export function AgentView({ sessionId }: { sessionId: string }): React.ReactElem
           running: true,
           content: '',
           toolActivities: [],
+          teammates: [],
           model: agentModelId || undefined,
         })
         return map
