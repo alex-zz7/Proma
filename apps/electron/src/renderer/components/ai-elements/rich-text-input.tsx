@@ -5,7 +5,7 @@
  *
  * 功能：
  * - StarterKit + Placeholder + Underline + Link + CodeBlockLowlight
- * - 可选 Mention 扩展（@ 引用文件、/ 触发 Skill、$ 触发 MCP）
+ * - 可选 Mention 扩展（@ 引用文件、/ 触发 Skill、# 触发 MCP）
  * - htmlToMarkdown 转换
  * - IME composition 处理
  * - Enter 提交 / Shift+Enter 换行
@@ -119,7 +119,7 @@ function htmlToMarkdown(html: string): string {
         const suggestionChar = el.getAttribute('data-mention-suggestion-char') || '@'
         if (dataType === 'mention') {
           if (suggestionChar === '/') return `/skill:${dataId}`
-          if (suggestionChar === '$') return `$mcp:${dataId}`
+          if (suggestionChar === '#') return `#mcp:${dataId}`
           return `@file:${dataId}`
         }
         return children
@@ -187,7 +187,7 @@ interface RichTextInputProps {
   collapsible?: boolean
   /** 工作区根路径（启用 @ 引用文件功能时需要） */
   workspacePath?: string | null
-  /** 工作区 slug（启用 / Skill 和 $ MCP 功能时需要） */
+  /** 工作区 slug（启用 / Skill 和 # MCP 功能时需要） */
   workspaceSlug?: string | null
   /** 附加目录路径列表（@ 引用时一并搜索） */
   attachedDirs?: string[]
@@ -240,6 +240,9 @@ export function RichTextInput({
   const workspaceSlugRef = useRef<string | null>(workspaceSlug ?? null)
   workspaceSlugRef.current = workspaceSlug ?? null
 
+  // 是否启用 Mention 功能（需要工作区路径或 slug）
+  const hasMentionSupport = !!(workspacePath || workspaceSlug)
+
   // Mention Suggestion 配置（稳定引用，不随 workspacePath 变化重建）
   const mentionSuggestion = useMemo(
     () => createFileMentionSuggestion(workspacePathRef, mentionActiveRef, attachedDirsRef),
@@ -252,7 +255,7 @@ export function RichTextInput({
     [],
   )
 
-  // MCP Suggestion 配置（$ 触发）
+  // MCP Suggestion 配置（# 触发）
   const mcpSuggestion = useMemo(
     () => createMcpMentionSuggestion(workspaceSlugRef, mentionActiveRef),
     [],
@@ -284,34 +287,49 @@ export function RichTextInput({
         placeholder,
         emptyEditorClass: 'is-editor-empty',
       }),
-      // Mention 扩展：@ 引用文件、/ 触发 Skill、$ 触发 MCP
-      // TipTap v3 原生支持 suggestions 数组，一个实例处理多个触发字符
-      Mention.configure({
-        HTMLAttributes: {},
-        renderHTML({ options, node, suggestion }) {
-          const char = suggestion?.char ?? node.attrs.mentionSuggestionChar ?? '@'
-          const label = node.attrs.label ?? node.attrs.id
-          let chipClass = 'mention-chip'
-          if (char === '/') chipClass = 'skill-mention-chip'
-          else if (char === '$') chipClass = 'mcp-mention-chip'
-          return [
-            'span',
-            {
-              'data-type': 'mention',
-              'data-id': node.attrs.id,
-              'data-label': node.attrs.label,
-              'data-mention-suggestion-char': char,
-              class: chipClass,
-            },
-            `${char}${label}`,
-          ]
-        },
-        suggestions: [
-          mentionSuggestion,
-          skillSuggestion,
-          mcpSuggestion,
-        ],
-      }),
+      // Mention 扩展：仅在 Agent 模式（有工作区）时启用
+      // @ 引用文件、/ 触发 Skill、# 触发 MCP
+      ...(hasMentionSupport ? [
+        Mention.extend({
+          addAttributes() {
+            return {
+              ...this.parent?.(),
+              mentionSuggestionChar: {
+                default: '@',
+                parseHTML: (el: HTMLElement) => el.getAttribute('data-mention-suggestion-char') || '@',
+                renderHTML: (attrs: Record<string, string>) => ({
+                  'data-mention-suggestion-char': attrs.mentionSuggestionChar,
+                }),
+              },
+            }
+          },
+        }).configure({
+          HTMLAttributes: {},
+          renderHTML({ node, suggestion }) {
+            const char = suggestion?.char ?? node.attrs.mentionSuggestionChar ?? '@'
+            const label = node.attrs.label ?? node.attrs.id
+            let chipClass = 'mention-chip'
+            if (char === '/') chipClass = 'skill-mention-chip'
+            else if (char === '#') chipClass = 'mcp-mention-chip'
+            return [
+              'span',
+              {
+                'data-type': 'mention',
+                'data-id': node.attrs.id,
+                'data-label': node.attrs.label,
+                'data-mention-suggestion-char': char,
+                class: chipClass,
+              },
+              `${char}${label}`,
+            ]
+          },
+          suggestions: [
+            mentionSuggestion,
+            skillSuggestion,
+            mcpSuggestion,
+          ],
+        }),
+      ] : []),
     ],
     content: value || '',
     editable: !disabled,

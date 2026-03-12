@@ -457,8 +457,7 @@ export function AgentView({ sessionId }: { sessionId: string }): React.ReactElem
 
   /** 构建 externalSelectedModel 给 ModelSelector */
   const externalSelectedModel = React.useMemo(() => {
-    if (!agentChannelId) return null
-    if (!agentModelId) return { channelId: agentChannelId, modelId: '' }
+    if (!agentChannelId || !agentModelId) return null
     return { channelId: agentChannelId, modelId: agentModelId }
   }, [agentChannelId, agentModelId])
 
@@ -851,7 +850,7 @@ export function AgentView({ sessionId }: { sessionId: string }): React.ReactElem
               onPasteFiles={handlePasteFiles}
               placeholder={
                 agentChannelId
-                  ? '输入消息... (Enter 发送，Shift+Enter 换行，@ 引用文件，/ Skill，$ MCP)'
+                  ? '输入消息... (Enter 发送，Shift+Enter 换行，@ 引用文件，/ 调用 Skill，# 调用 MCP)'
                   : '请先在设置中选择 Agent 供应商'
               }
               disabled={!agentChannelId}

@@ -1,14 +1,35 @@
 /**
  * SkillMentionSuggestion — TipTap Mention Suggestion 配置（/ 触发）
  *
- * 输入 / 后异步获取当前工作区的 Skill 列表，弹出 SkillMentionList 浮动列表。
+ * 输入 / 后异步获取当前工作区的 Skill 列表，弹出 MentionList 浮动列表。
  */
 
 import type React from 'react'
 import { ReactRenderer } from '@tiptap/react'
 import type { SuggestionOptions } from '@tiptap/suggestion'
-import { SkillMentionList } from './SkillMentionList'
-import type { SkillMentionRef, SkillMentionItem } from './SkillMentionList'
+import { Sparkles } from 'lucide-react'
+import { MentionList } from './MentionList'
+import type { MentionListRef } from './MentionList'
+import { createMentionPopup, positionPopup } from './mention-popup-utils'
+
+export interface SkillMentionItem {
+  id: string
+  name: string
+  description?: string
+}
+
+/** Skill 项渲染 */
+function SkillItemRenderer({ item }: { item: SkillMentionItem }): React.ReactElement {
+  return (
+    <>
+      <Sparkles className="size-3.5 text-violet-500 flex-shrink-0" />
+      <span className="truncate font-medium flex-1 min-w-0">{item.name}</span>
+      {item.description && (
+        <span className="truncate text-[10px] text-muted-foreground/50 max-w-[120px]">{item.description}</span>
+      )}
+    </>
+  )
+}
 
 /**
  * 创建 Skill / 引用的 Suggestion 配置
@@ -41,16 +62,19 @@ export function createSkillMentionSuggestion(
     },
 
     render: () => {
-      let renderer: ReactRenderer<SkillMentionRef> | null = null
+      let renderer: ReactRenderer<MentionListRef> | null = null
       let popup: HTMLDivElement | null = null
 
       return {
         onStart(props) {
           mentionActiveRef.current = true
-          renderer = new ReactRenderer(SkillMentionList, {
+          renderer = new ReactRenderer(MentionList, {
             props: {
               items: props.items,
               selectedIndex: 0,
+              emptyText: '无匹配 Skill',
+              keyExtractor: (item: SkillMentionItem) => item.id,
+              renderItem: (item: SkillMentionItem) => <SkillItemRenderer item={item} />,
               onSelect: (item: SkillMentionItem) => {
                 props.command({ id: item.id, label: item.name })
               },
@@ -58,35 +82,13 @@ export function createSkillMentionSuggestion(
             editor: props.editor,
           })
 
-          popup = document.createElement('div')
-          popup.style.position = 'absolute'
-          popup.style.zIndex = '9999'
-          document.body.appendChild(popup)
-          popup.appendChild(renderer.element)
-
-          const rect = props.clientRect?.()
-          if (rect && popup) {
-            popup.style.left = `${rect.left}px`
-            requestAnimationFrame(() => {
-              if (!popup) return
-              const popupHeight = popup.offsetHeight
-              popup.style.top = `${rect.top - popupHeight - 4}px`
-            })
-          }
+          popup = createMentionPopup(renderer.element)
+          positionPopup(popup, props.clientRect?.())
         },
 
         onUpdate(props) {
           renderer?.updateProps({ items: props.items })
-
-          const rect = props.clientRect?.()
-          if (rect && popup) {
-            popup.style.left = `${rect.left}px`
-            requestAnimationFrame(() => {
-              if (!popup) return
-              const popupHeight = popup.offsetHeight
-              popup.style.top = `${rect.top - popupHeight - 4}px`
-            })
-          }
+          positionPopup(popup, props.clientRect?.())
         },
 
         onKeyDown(props) {
