@@ -996,6 +996,35 @@ export function registerIpcHandlers(): void {
           return { success: false, message: `连接失败: ${msg}` }
         }
       }
+      // Nano Banana 生图工具测试
+      if (toolId === 'nano-banana') {
+        const { getToolCredentials: getCredentials } = await import('./lib/chat-tool-config')
+        const credentials = getCredentials('nano-banana')
+        if (!credentials.apiKey) {
+          return { success: false, message: '请先填写 Gemini API Key' }
+        }
+        try {
+          const baseUrl = credentials.baseUrl?.trim() || 'https://generativelanguage.googleapis.com'
+          const model = credentials.model?.trim() || 'gemini-3.1-flash-image-preview'
+          const url = `${baseUrl}/v1beta/models/${model}:generateContent?key=${credentials.apiKey}`
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: 'Hi' }] }],
+              generationConfig: { maxOutputTokens: 10 },
+            }),
+          })
+          if (!response.ok) {
+            const errorText = await response.text()
+            return { success: false, message: `API 请求失败 (${response.status}): ${errorText.slice(0, 200)}` }
+          }
+          return { success: true, message: `连接成功，模型 ${model} 可用` }
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error)
+          return { success: false, message: `连接失败: ${msg}` }
+        }
+      }
       return { success: false, message: `工具 ${toolId} 不支持测试` }
     }
   )
